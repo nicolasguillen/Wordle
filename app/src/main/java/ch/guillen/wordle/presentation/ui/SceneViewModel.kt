@@ -10,25 +10,41 @@ class SceneViewModel : ViewModel() {
 
     var solution = "EARLY"
 
-    var gameState by mutableStateOf(SceneState(solution))
+    private var index by mutableStateOf(0)
+
+    var words by mutableStateOf(listOf<Word>())
         private set
 
     fun didType(keyType: KeyType) {
+        if(words.getOrNull(index) == null) {
+            words = words.toMutableList().apply {
+                add(Word("", WordState.IDLE))
+            }
+        }
         when(keyType) {
-            is KeyType.Letter ->
-                if(gameState.word1.word.length < 5) {
-                    gameState = gameState.copy(word1 = Word(gameState.word1.word + keyType.char, WordState.IDLE))
+            is KeyType.Letter -> {
+                if(words[index].word.length < 5) {
+                    words = words.toMutableList().apply {
+                        this[index] = Word(words[index].word + keyType.char, WordState.IDLE)
+                    }
                 }
+            }
 
             KeyType.Backspace ->
-                gameState =
-                    gameState.copy(word1 = Word(gameState.word1.word.dropLast(1), WordState.IDLE))
+                words = words.toMutableList().apply {
+                    this[index] = Word(words[index].word.dropLast(1), WordState.IDLE)
+                }
 
             KeyType.Enter -> {
-                gameState = if(gameState.word1.word.length == 5) {
-                    gameState.copy(word1 = Word(gameState.word1.word, WordState.DONE))
+                if(words[index].word.length == 5) {
+                    words = words.toMutableList().apply {
+                        this[index] = Word(words[index].word, WordState.DONE)
+                    }
+                    index++
                 } else {
-                    gameState.copy(word1 = Word(gameState.word1.word, WordState.ERROR))
+                    words = words.toMutableList().apply {
+                        this[index] = Word(words[index].word, WordState.ERROR)
+                    }
                 }
             }
             else -> {  }

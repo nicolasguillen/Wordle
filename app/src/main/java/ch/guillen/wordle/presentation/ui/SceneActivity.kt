@@ -13,12 +13,14 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.*
+import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.guillen.wordle.presentation.theme.HitColors
 import ch.guillen.wordle.presentation.theme.WordleTheme
 import ch.guillen.wordle.presentation.ui.keyboard.KeyType
@@ -48,9 +50,8 @@ class SceneActivity : ComponentActivity() {
 fun GameScreen(
     viewModel: SceneViewModel = viewModel()
 ) {
-    val state = viewModel.gameState
     Game(
-        state = state,
+        words = viewModel.words,
         onKeyPress = { key ->
             viewModel.didType(key)
         },
@@ -59,7 +60,7 @@ fun GameScreen(
 
 @Composable
 private fun Game(
-    state: SceneState,
+    words: List<Word>,
     onKeyPress: (KeyType) -> Unit = {},
 ) {
     Box(
@@ -72,32 +73,28 @@ private fun Game(
                 .padding(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Word(
-                word = state.word1.word,
-                state = state.word1.state,
-                solution = state.solution
-            )
-        }
-
-        val missed = state.getMissedLetters()
-        val keyboardState = KeyboardState().apply {
-            missed.forEach {
-                updateLetter(it, HitColors.Miss)
+            repeat(6) {
+                val word = words.getOrNull(it)
+                WordView(
+                    word = word?.word ?: "",
+                    state = word?.state ?: WordState.IDLE,
+                )
             }
         }
+
         Keyboard(
             modifier = Modifier.align(Alignment.BottomCenter),
-            state = keyboardState,
+            state = KeyboardState(),
             onKeyPress = onKeyPress
         )
     }
 }
 
 @Composable
-private fun Word(
+private fun WordView(
     word: String,
     state: WordState = WordState.IDLE,
-    solution: String
+    solution: String = "EARLY"
 ) {
     Row(
         modifier = Modifier
@@ -114,10 +111,11 @@ private fun Word(
                         hitType = HitType.UNKNOWN
                     )
                 WordState.DONE ->
-                    Letter(
+                    RevealingLetter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
-                        hitType = getHitTypeFromSolution(solution, word, iteration)
+                        hitType = getHitTypeFromSolution(solution, word, iteration),
+                        iteration
                     )
                 WordState.ERROR -> {
                     WordError(
@@ -133,22 +131,58 @@ private fun Word(
 }
 
 @Composable
+private fun RevealingLetter(
+    modifier: Modifier,
+    character: Char,
+    hitType: HitType,
+    index: Int
+) {
+    val animationProgress = remember { Animatable(1f) }
+    val previousFrame = remember { mutableStateOf(2f) }
+    LaunchedEffect(animationProgress) {
+        animationProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = repeatable(
+                animation = tween(
+                    durationMillis = 300,
+                    delayMillis = 200 * index,
+                ),
+                repeatMode = RepeatMode.Reverse,
+                iterations = 2
+            )
+        )
+    }
+
+    val scaleY = if(animationProgress.value == 0f) 1f else animationProgress.value
+
+    Letter(
+        modifier = modifier
+            .scale(scaleX = 1f, scaleY = scaleY),
+        character = character,
+        hitType = if(previousFrame.value <= scaleY) hitType else HitType.UNKNOWN
+    )
+
+    previousFrame.value = scaleY
+}
+
+@Composable
 private fun WordError(
     char: Char,
     modifier: Modifier
 ) {
-    var targetValue by remember { mutableStateOf((-10).dp) }
-    val animationProgress by animateDpAsState(
-        targetValue = targetValue,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioHighBouncy,
-            stiffness = Spring.StiffnessMedium,
+    val animationProgress = remember { Animatable(1f) }
+    LaunchedEffect(animationProgress) {
+        animationProgress.animateTo(
+            targetValue = 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioHighBouncy,
+                stiffness = Spring.StiffnessMedium,
+            )
         )
-    )
-    SideEffect { targetValue = 0.dp }
+    }
     Letter(
         modifier = modifier
-            .offset(x = animationProgress),
+            .offset(x = Dp(animationProgress.value * -10)),
         character = char,
         hitType = HitType.UNKNOWN
     )
@@ -216,10 +250,7 @@ enum class HitType {
 @Preview(showBackground = true)
 @Composable
 private fun LightGame() {
-    val state = SceneState(
-        solution = "TESTY",
-        word1 = Word("TASTY", WordState.DONE)
-    )
+    val state = mutableListOf(Word("TASTE", WordState.DONE))
     WordleTheme(darkTheme = false) {
         Game(state)
     }
@@ -228,10 +259,7 @@ private fun LightGame() {
 @Preview(showBackground = true)
 @Composable
 private fun DarkGame() {
-    val state = SceneState(
-        solution = "TESTY",
-        word1 = Word("TASTE", WordState.DONE)
-    )
+    val state = mutableListOf(Word("TASTE", WordState.DONE))
     WordleTheme(darkTheme = true) {
         Game(state)
     }
