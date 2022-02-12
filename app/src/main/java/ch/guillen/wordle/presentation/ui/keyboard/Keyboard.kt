@@ -19,6 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ch.guillen.wordle.presentation.theme.HitColors
 import ch.guillen.wordle.presentation.theme.WordleTheme
+import ch.guillen.wordle.presentation.ui.CharStatus
 
 @Composable
 fun Keyboard(
@@ -87,8 +88,8 @@ private fun Key(
 @Composable
 private fun DefaultKeyboard() {
     val state = KeyboardState().apply {
-        updateLetter(KeyType.Letter('R'), HitColors.Hit)
-        updateLetter(KeyType.Letter('X'), HitColors.Miss)
+        updateLetter(KeyType.Letter('R'), CharStatus.ABSENT)
+        updateLetter(KeyType.Letter('X'), CharStatus.CORRECT)
     }
 
     WordleTheme(darkTheme = false) {

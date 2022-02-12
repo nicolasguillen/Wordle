@@ -1,53 +1,134 @@
 package ch.guillen.wordle.presentation.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import ch.guillen.wordle.presentation.ui.keyboard.KeyType
+import ch.guillen.wordle.presentation.ui.keyboard.KeyboardState
+import ch.guillen.words.domain.usecase.PickRandomWord
+import ch.guillen.words.domain.usecase.ValidateWord
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SceneViewModel : ViewModel() {
+@HiltViewModel
+class SceneViewModel @Inject constructor(
+    private val pickRandomWord: PickRandomWord,
+    private val validateWord: ValidateWord
+) : ViewModel() {
 
-    var solution = "EARLY"
+    private val _solution = MutableStateFlow("")
+    val solution = _solution.asStateFlow()
 
-    private var index by mutableStateOf(0)
+    private val _currentIndex = MutableStateFlow(0)
+    private val currentIndex = _currentIndex.asStateFlow()
 
-    var words by mutableStateOf(listOf<Word>())
-        private set
+    private val _words = MutableStateFlow(listOf<Word>())
+    val words = _words.asStateFlow()
 
-    fun didType(keyType: KeyType) {
-        if(words.getOrNull(index) == null) {
-            words = words.toMutableList().apply {
-                add(Word("", WordState.IDLE))
-            }
+    private val _wordState = MutableStateFlow(listOf<WordState>())
+    val wordState = _wordState.asStateFlow()
+
+    private val _keyboardState = MutableStateFlow(KeyboardState())
+    val keyboardState = _keyboardState.asStateFlow()
+
+    init {
+        flow {
+            val randomWord = pickRandomWord.invoke().word
+            emit(randomWord)
+        }.onEach {
+            _solution.tryEmit(it)
+        }.launchIn(viewModelScope)
+    }
+
+    fun didType(keyType: KeyType) = viewModelScope.launch {
+        val index = currentIndex.value
+
+        if(words.value.getOrNull(index) == null) {
+            _words.tryEmit(words.value.toMutableList().apply {
+                add(Word(""))
+            })
+            _wordState.tryEmit(wordState.value.toMutableList().apply {
+                add(WordState.Idle)
+            })
+        } else {
+            _wordState.tryEmit(wordState.value.toMutableList().apply {
+                this[index] = WordState.Idle
+            })
         }
+
+        val currentWord = words.value[index].word
         when(keyType) {
             is KeyType.Letter -> {
-                if(words[index].word.length < 5) {
-                    words = words.toMutableList().apply {
-                        this[index] = Word(words[index].word + keyType.char, WordState.IDLE)
-                    }
+                if(currentWord.length < 5) {
+                    _words.tryEmit(words.value.toMutableList().apply {
+                        this[index] = Word(currentWord + keyType.char)
+                    })
                 }
             }
 
             KeyType.Backspace ->
-                words = words.toMutableList().apply {
-                    this[index] = Word(words[index].word.dropLast(1), WordState.IDLE)
-                }
+                _words.tryEmit(words.value.toMutableList().apply {
+                    this[index] = Word(currentWord.dropLast(1))
+                })
 
             KeyType.Enter -> {
-                if(words[index].word.length == 5) {
-                    words = words.toMutableList().apply {
-                        this[index] = Word(words[index].word, WordState.DONE)
-                    }
-                    index++
-                } else {
-                    words = words.toMutableList().apply {
-                        this[index] = Word(words[index].word, WordState.ERROR)
-                    }
+                val doesWordExist = validateWord.invoke(currentWord)
+                if(!doesWordExist || currentWord.length < 5) {
+                    _wordState.tryEmit(wordState.value.toMutableList().apply {
+                        this[index] = WordState.Error
+                    })
+                    return@launch
                 }
+
+                val guessStatus = getGuessStatus(words.value[index])
+                val status = if(guessStatus.filterNot { it == CharStatus.CORRECT }.isEmpty()) {
+                    // GG
+                    WordState.Victory
+                } else {
+                    WordState.Validated(guessStatus)
+                }
+                _wordState.tryEmit(wordState.value.toMutableList().apply {
+                    if(words.value.lastIndex == wordState.value.lastIndex) {
+                        this[index] = status
+                    } else {
+                        add(index, status)
+                    }
+                })
+
+
+                guessStatus.forEachIndexed { i, charStatus ->
+                    keyboardState.value.updateLetter(KeyType.Letter(words.value[index].word[i]), charStatus)
+                }
+                _keyboardState.tryEmit(keyboardState.value)
+
+                _currentIndex.tryEmit(index+1)
             }
-            else -> {  }
+            else -> { }
         }
+
+    }
+
+    @VisibleForTesting
+    fun getGuessStatus(word: Word): List<CharStatus> {
+        val charObj = mutableListOf<CharStatus>()
+
+        word.word.forEachIndexed { index, letter ->
+            if (!solution.value.contains(letter)) {
+                charObj.add(CharStatus.ABSENT)
+                return@forEachIndexed
+            }
+
+            if(letter == solution.value[index]) {
+                charObj.add(CharStatus.CORRECT)
+                return@forEachIndexed
+            }
+
+            charObj.add(CharStatus.PRESENT)
+        }
+
+        return charObj
+
     }
 }

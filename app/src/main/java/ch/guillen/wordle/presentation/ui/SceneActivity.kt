@@ -3,7 +3,6 @@ package ch.guillen.wordle.presentation.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,19 +14,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import ch.guillen.wordle.presentation.theme.HitColors
 import ch.guillen.wordle.presentation.theme.WordleTheme
 import ch.guillen.wordle.presentation.ui.keyboard.KeyType
 import ch.guillen.wordle.presentation.ui.keyboard.Keyboard
 import ch.guillen.wordle.presentation.ui.keyboard.KeyboardState
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
 
+@AndroidEntryPoint
 class SceneActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,10 +51,12 @@ class SceneActivity : ComponentActivity() {
 
 @Composable
 fun GameScreen(
-    viewModel: SceneViewModel = viewModel()
+    viewModel: SceneViewModel = hiltViewModel()
 ) {
     Game(
-        words = viewModel.words,
+        words = viewModel.words.collectAsState().value,
+        states = viewModel.wordState.collectAsState().value,
+        keyboardState = viewModel.keyboardState.collectAsState().value,
         onKeyPress = { key ->
             viewModel.didType(key)
         },
@@ -61,6 +66,8 @@ fun GameScreen(
 @Composable
 private fun Game(
     words: List<Word>,
+    states: List<WordState>,
+    keyboardState: KeyboardState = KeyboardState(),
     onKeyPress: (KeyType) -> Unit = {},
 ) {
     Box(
@@ -75,16 +82,17 @@ private fun Game(
         ) {
             repeat(6) {
                 val word = words.getOrNull(it)
+                val state = states.getOrNull(it)
                 WordView(
                     word = word?.word ?: "",
-                    state = word?.state ?: WordState.IDLE,
+                    state = state ?: WordState.Idle
                 )
             }
         }
 
         Keyboard(
             modifier = Modifier.align(Alignment.BottomCenter),
-            state = KeyboardState(),
+            state = keyboardState,
             onKeyPress = onKeyPress
         )
     }
@@ -93,8 +101,7 @@ private fun Game(
 @Composable
 private fun WordView(
     word: String,
-    state: WordState = WordState.IDLE,
-    solution: String = "EARLY"
+    state: WordState?
 ) {
     Row(
         modifier = Modifier
@@ -104,27 +111,32 @@ private fun WordView(
     ) {
         repeat(5) { iteration ->
             when(state) {
-                WordState.IDLE ->
+                WordState.Idle ->
                     Letter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
-                        hitType = HitType.UNKNOWN
                     )
-                WordState.DONE ->
+                is WordState.Validated ->
                     RevealingLetter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
-                        hitType = getHitTypeFromSolution(solution, word, iteration),
+                        hitColor = state.status.getOrNull(iteration)?.color ?: HitColors.Unknown,
                         iteration
                     )
-                WordState.ERROR -> {
+                WordState.Error -> {
                     WordError(
                         char = word.getOrElse(iteration) { ' ' },
                         modifier = Modifier
                             .weight(0.2f)
                     )
                 }
-
+                WordState.Victory ->
+                    VictoryLetter(
+                        modifier = Modifier.weight(0.2f),
+                        character = word.getOrElse(iteration) { ' ' },
+                        iteration
+                    )
+                else -> {  }
             }
         }
     }
@@ -134,7 +146,7 @@ private fun WordView(
 private fun RevealingLetter(
     modifier: Modifier,
     character: Char,
-    hitType: HitType,
+    hitColor: Color,
     index: Int
 ) {
     val animationProgress = remember { Animatable(1f) }
@@ -159,10 +171,44 @@ private fun RevealingLetter(
         modifier = modifier
             .scale(scaleX = 1f, scaleY = scaleY),
         character = character,
-        hitType = if(previousFrame.value <= scaleY) hitType else HitType.UNKNOWN
+        hitColor = if(previousFrame.value <= scaleY) hitColor else HitColors.Unknown
     )
 
     previousFrame.value = scaleY
+}
+
+@Composable
+private fun VictoryLetter(
+    modifier: Modifier,
+    character: Char,
+    index: Int
+) {
+    val animationProgress = remember { Animatable(0f) }
+    LaunchedEffect(animationProgress) {
+        animationProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = repeatable(
+                iterations = 2,
+                animation = tween(
+                    durationMillis = 300,
+                    delayMillis = 80 * index
+                ),
+                repeatMode = RepeatMode.Reverse,
+            )
+        )
+    }
+
+    val scaleY = if(animationProgress.value == 1f) 0f else animationProgress.value
+
+    val travelDistance = with(LocalDensity.current) { 24.dp.toPx() }
+    Letter(
+        modifier = modifier
+            .graphicsLayer {
+                translationY = -scaleY * travelDistance
+            },
+        character = character,
+        hitColor = HitColors.Hit
+    )
 }
 
 @Composable
@@ -184,48 +230,18 @@ private fun WordError(
         modifier = modifier
             .offset(x = Dp(animationProgress.value * -10)),
         character = char,
-        hitType = HitType.UNKNOWN
     )
-}
-
-fun getHitTypeFromSolution(solution: String, word: String, index: Int): HitType {
-    val letterTyped = word.getOrNull(index) ?:
-        // Place is empty
-        return HitType.UNKNOWN
-
-    if(solution[index] == letterTyped) {
-        // Letter is correct
-        return HitType.FULL
-    }
-
-    if(!solution.contains(letterTyped)) {
-        // Letter is not even in solution
-        return HitType.MISS
-    }
-
-    // We know that the letter is in the solution
-
-//    val repetitionsInSolution = solution.count { it == letterTyped }
-//    val repetitionsInWord = word.count { it == letterTyped }
-
-    if(solution.contains(letterTyped)/* && repetitionsInSolution == repetitionsInWord*/) {
-        return HitType.PARTIAL
-    }
-
-    return HitType.MISS
 }
 
 @Composable
 private fun Letter(
     modifier: Modifier,
     character: Char,
-    hitType: HitType
+    hitColor: Color = HitColors.Unknown
 ) {
-    val color by animateColorAsState(getColorByHit(hitType))
-
     Text(
         modifier = modifier
-            .background(color)
+            .background(hitColor)
             .aspectRatio(1f)
             .wrapContentSize(Alignment.Center)
             .padding(4.dp),
@@ -236,31 +252,12 @@ private fun Letter(
     )
 }
 
-fun getColorByHit(hitType: HitType) : Color = when(hitType) {
-    HitType.UNKNOWN -> HitColors.Unknown
-    HitType.MISS -> HitColors.Miss
-    HitType.PARTIAL -> HitColors.Partial
-    HitType.FULL -> HitColors.Hit
-}
-
-enum class HitType {
-    UNKNOWN, MISS, PARTIAL, FULL
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun LightGame() {
-    val state = mutableListOf(Word("TASTE", WordState.DONE))
-    WordleTheme(darkTheme = false) {
-        Game(state)
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun DarkGame() {
-    val state = mutableListOf(Word("TASTE", WordState.DONE))
+    val words = mutableListOf(Word("TASTE"))
+    val states = mutableListOf(WordState.Validated(listOf(CharStatus.ABSENT, CharStatus.ABSENT, CharStatus.CORRECT, CharStatus.PRESENT, CharStatus.ABSENT)))
     WordleTheme(darkTheme = true) {
-        Game(state)
+        Game(words, states)
     }
 }

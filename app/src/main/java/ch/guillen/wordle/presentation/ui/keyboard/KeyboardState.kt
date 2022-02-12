@@ -2,6 +2,7 @@ package ch.guillen.wordle.presentation.ui.keyboard
 
 import androidx.compose.ui.graphics.Color
 import ch.guillen.wordle.presentation.theme.HitColors
+import ch.guillen.wordle.presentation.ui.CharStatus
 
 data class KeyboardState(
     val rows: List<MutableList<KeyboardModel>> = listOf(
@@ -43,9 +44,9 @@ data class KeyboardState(
         )
     )
 ) {
-    fun updateLetter(letter: KeyType.Letter, color: Color) {
+    fun updateLetter(letter: KeyType.Letter, charStatus: CharStatus) {
         rows.forEach { row ->
-            row.find { it.type == letter }?.color = color
+            row.find { it.type == letter }?.color = charStatus.color
         }
     }
 }
