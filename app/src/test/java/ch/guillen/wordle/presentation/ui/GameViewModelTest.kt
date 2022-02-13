@@ -1,6 +1,9 @@
 package ch.guillen.wordle.presentation.ui
 
 import ch.guillen.test.CoroutinesTest
+import ch.guillen.wordle.presentation.ui.game.CharStatus
+import ch.guillen.wordle.presentation.ui.game.GameViewModel
+import ch.guillen.wordle.presentation.ui.game.Word
 import ch.guillen.words.domain.usecase.PickRandomWord
 import ch.guillen.words.domain.usecase.ValidateWord
 import io.mockk.coEvery
@@ -9,9 +12,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 
-class SceneViewModelTest : CoroutinesTest {
+class GameViewModelTest : CoroutinesTest {
 
-    private lateinit var testee: SceneViewModel
+    private lateinit var testee: GameViewModel
     private val pickRandomWord: PickRandomWord = mockk()
     private val validateWord: ValidateWord = mockk()
 
@@ -19,7 +22,7 @@ class SceneViewModelTest : CoroutinesTest {
     fun setup() {
         setupSolution()
 
-        testee = SceneViewModel(pickRandomWord, validateWord)
+        testee = GameViewModel(pickRandomWord, validateWord)
     }
 
     @Test

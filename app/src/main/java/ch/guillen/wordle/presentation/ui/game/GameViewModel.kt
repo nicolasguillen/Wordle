@@ -1,4 +1,4 @@
-package ch.guillen.wordle.presentation.ui
+package ch.guillen.wordle.presentation.ui.game
 
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class SceneViewModel @Inject constructor(
+class GameViewModel @Inject constructor(
     private val pickRandomWord: PickRandomWord,
     private val validateWord: ValidateWord
 ) : ViewModel() {
@@ -21,13 +21,10 @@ class SceneViewModel @Inject constructor(
     private val _solution = MutableStateFlow("")
     val solution = _solution.asStateFlow()
 
-    private val _currentIndex = MutableStateFlow(0)
-    private val currentIndex = _currentIndex.asStateFlow()
-
-    private val _words = MutableStateFlow(listOf<Word>())
+    private val _words = MutableStateFlow(listOf(Word("")))
     val words = _words.asStateFlow()
 
-    private val _wordState = MutableStateFlow(listOf<WordState>())
+    private val _wordState = MutableStateFlow(listOf<WordState>(WordState.Idle))
     val wordState = _wordState.asStateFlow()
 
     private val _keyboardState = MutableStateFlow(KeyboardState())
@@ -43,71 +40,75 @@ class SceneViewModel @Inject constructor(
     }
 
     fun didType(keyType: KeyType) = viewModelScope.launch {
-        val index = currentIndex.value
 
-        if(words.value.getOrNull(index) == null) {
-            _words.tryEmit(words.value.toMutableList().apply {
-                add(Word(""))
-            })
-            _wordState.tryEmit(wordState.value.toMutableList().apply {
-                add(WordState.Idle)
-            })
-        } else {
-            _wordState.tryEmit(wordState.value.toMutableList().apply {
-                this[index] = WordState.Idle
-            })
+        if(wordState.value.last() is WordState.GameOver) {
+            return@launch
         }
 
-        val currentWord = words.value[index].word
+        val currentWord = words.value.last().word
         when(keyType) {
             is KeyType.Letter -> {
                 if(currentWord.length < 5) {
-                    _words.tryEmit(words.value.toMutableList().apply {
-                        this[index] = Word(currentWord + keyType.char)
-                    })
+                    emitNewWordState(WordState.Idle)
+                    emitNewWord(Word(currentWord + keyType.char))
                 }
             }
 
-            KeyType.Backspace ->
-                _words.tryEmit(words.value.toMutableList().apply {
-                    this[index] = Word(currentWord.dropLast(1))
-                })
+            KeyType.Backspace -> {
+                emitNewWordState(WordState.Idle)
+                emitNewWord(Word(currentWord.dropLast(1)))
+            }
 
             KeyType.Enter -> {
                 val doesWordExist = validateWord.invoke(currentWord)
                 if(!doesWordExist || currentWord.length < 5) {
-                    _wordState.tryEmit(wordState.value.toMutableList().apply {
-                        this[index] = WordState.Error
-                    })
+                    emitNewWordState(WordState.Idle)
+                    emitNewWordState(WordState.Error)
                     return@launch
                 }
 
-                val guessStatus = getGuessStatus(words.value[index])
-                val status = if(guessStatus.filterNot { it == CharStatus.CORRECT }.isEmpty()) {
-                    // GG
-                    WordState.Victory
-                } else {
-                    WordState.Validated(guessStatus)
+                val guessStatus = getGuessStatus(words.value.last())
+                emitNewWordState(WordState.Validated(guessStatus))
+
+                // Check if game is over
+                val wordIsCorrect = guessStatus.filterNot { it == CharStatus.CORRECT }.isEmpty()
+                if(wordIsCorrect) {
+                    emitNewWordState(WordState.GameOver(true))
+                    return@launch
+                } else if (_wordState.value.size == 6) {
+                    emitNewWordState(WordState.GameOver(false))
+                    return@launch
                 }
-                _wordState.tryEmit(wordState.value.toMutableList().apply {
-                    if(words.value.lastIndex == wordState.value.lastIndex) {
-                        this[index] = status
-                    } else {
-                        add(index, status)
-                    }
-                })
 
-
+                // Update keyboard
                 guessStatus.forEachIndexed { i, charStatus ->
-                    keyboardState.value.updateLetter(KeyType.Letter(words.value[index].word[i]), charStatus)
+                    keyboardState.value.updateLetter(KeyType.Letter(words.value.last().word[i]), charStatus)
                 }
                 _keyboardState.tryEmit(keyboardState.value)
 
-                _currentIndex.tryEmit(index+1)
+                // Prepare next word
+                _words.tryEmit(words.value.toMutableList().apply {
+                    add(Word(""))
+                })
+                _wordState.tryEmit(wordState.value.toMutableList().apply {
+                    add(WordState.Idle)
+                })
             }
             else -> { }
         }
 
+    }
+
+    private fun emitNewWord(newWord: Word) {
+        _words.tryEmit(words.value.toMutableList().apply {
+            this[lastIndex] = newWord
+        })
+    }
+
+    private fun emitNewWordState(newState: WordState) {
+        _wordState.tryEmit(wordState.value.toMutableList().apply {
+            this[lastIndex] = newState
+        })
     }
 
     @VisibleForTesting

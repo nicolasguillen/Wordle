@@ -1,4 +1,4 @@
-package ch.guillen.wordle.presentation.ui
+package ch.guillen.wordle.presentation.ui.game
 
 import androidx.compose.ui.graphics.Color
 import ch.guillen.wordle.presentation.theme.HitColors
@@ -18,9 +18,11 @@ sealed class WordState {
     data class Validated(
         val status: List<CharStatus>,
     ) : WordState()
+    data class GameOver(
+        val isVictory: Boolean,
+    ) : WordState()
     object Idle: WordState()
     object Error: WordState()
-    object Victory: WordState()
 }
 
 data class Word(var word: String)

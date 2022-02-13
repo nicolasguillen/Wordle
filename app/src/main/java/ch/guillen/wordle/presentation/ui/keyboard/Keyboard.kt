@@ -17,9 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import ch.guillen.wordle.presentation.theme.HitColors
 import ch.guillen.wordle.presentation.theme.WordleTheme
-import ch.guillen.wordle.presentation.ui.CharStatus
+import ch.guillen.wordle.presentation.ui.game.CharStatus
 
 @Composable
 fun Keyboard(

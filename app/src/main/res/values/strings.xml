@@ -1,10 +1,4 @@
 <resources>
     <string name="app_name">Wordle</string>
-
-    <string-array name="words" >
-
-        <item name="asd"/>
-
-    </string-array>
-
+    <string name="NewGame">New Game</string>
 </resources>

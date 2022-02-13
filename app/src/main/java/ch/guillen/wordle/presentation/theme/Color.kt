@@ -2,6 +2,7 @@ package ch.guillen.wordle.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
+val Primary = Color(0xFF388E3C)
 val LightSurface = Color(0xFFACACAC)
 val DarkSurface = Color(0xFF242424)
 

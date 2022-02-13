@@ -1,13 +1,12 @@
-package ch.guillen.wordle.presentation.ui
+package ch.guillen.wordle.presentation.ui.game
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,43 +23,31 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import ch.guillen.wordle.presentation.theme.HitColors
 import ch.guillen.wordle.presentation.theme.WordleTheme
+import ch.guillen.wordle.presentation.ui.dialog.ExitWarningDialog
 import ch.guillen.wordle.presentation.ui.keyboard.KeyType
 import ch.guillen.wordle.presentation.ui.keyboard.Keyboard
 import ch.guillen.wordle.presentation.ui.keyboard.KeyboardState
-import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
-
-@AndroidEntryPoint
-class SceneActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        setContent {
-            WordleTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colors.background
-                ) {
-                    GameScreen()
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun GameScreen(
-    viewModel: SceneViewModel = hiltViewModel()
+    viewModel: GameViewModel = hiltViewModel(),
+    onFinishedGame: () -> Unit = {}
 ) {
+    val words = viewModel.words.collectAsState().value
+    val states = viewModel.wordState.collectAsState().value
+    val keyboardState = viewModel.keyboardState.collectAsState().value
+
     Game(
-        words = viewModel.words.collectAsState().value,
-        states = viewModel.wordState.collectAsState().value,
-        keyboardState = viewModel.keyboardState.collectAsState().value,
+        words = words,
+        states = states,
+        keyboardState = keyboardState,
         onKeyPress = { key ->
             viewModel.didType(key)
         },
     )
+
+    ExitWarningDialog(onExitGame = onFinishedGame)
 }
 
 @Composable
@@ -73,7 +60,7 @@ private fun Game(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colors.background)
+            .background(MaterialTheme.colors.surface)
     ) {
         Column(
             modifier = Modifier
@@ -81,11 +68,11 @@ private fun Game(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             repeat(6) {
-                val word = words.getOrNull(it)
-                val state = states.getOrNull(it)
+                val word = words.getOrNull(it)?.word ?: ""
+                val state = states.getOrNull(it) ?: WordState.Idle
                 WordView(
-                    word = word?.word ?: "",
-                    state = state ?: WordState.Idle
+                    word = word,
+                    state = state
                 )
             }
         }
@@ -110,27 +97,27 @@ private fun WordView(
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         repeat(5) { iteration ->
-            when(state) {
-                WordState.Idle ->
+            when {
+                state == WordState.Idle ->
                     Letter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
                     )
-                is WordState.Validated ->
+                state is WordState.Validated ->
                     RevealingLetter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
                         hitColor = state.status.getOrNull(iteration)?.color ?: HitColors.Unknown,
                         iteration
                     )
-                WordState.Error -> {
+                state == WordState.Error -> {
                     WordError(
                         char = word.getOrElse(iteration) { ' ' },
                         modifier = Modifier
                             .weight(0.2f)
                     )
                 }
-                WordState.Victory ->
+                state is WordState.GameOver && state.isVictory ->
                     VictoryLetter(
                         modifier = Modifier.weight(0.2f),
                         character = word.getOrElse(iteration) { ' ' },
@@ -256,7 +243,17 @@ private fun Letter(
 @Composable
 private fun DarkGame() {
     val words = mutableListOf(Word("TASTE"))
-    val states = mutableListOf(WordState.Validated(listOf(CharStatus.ABSENT, CharStatus.ABSENT, CharStatus.CORRECT, CharStatus.PRESENT, CharStatus.ABSENT)))
+    val states = mutableListOf(
+        WordState.Validated(
+            listOf(
+                CharStatus.ABSENT,
+                CharStatus.ABSENT,
+                CharStatus.CORRECT,
+                CharStatus.PRESENT,
+                CharStatus.ABSENT
+            )
+        )
+    )
     WordleTheme(darkTheme = true) {
         Game(words, states)
     }

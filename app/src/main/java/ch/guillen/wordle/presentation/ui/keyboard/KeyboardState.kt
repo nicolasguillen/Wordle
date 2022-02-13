@@ -2,7 +2,7 @@ package ch.guillen.wordle.presentation.ui.keyboard
 
 import androidx.compose.ui.graphics.Color
 import ch.guillen.wordle.presentation.theme.HitColors
-import ch.guillen.wordle.presentation.ui.CharStatus
+import ch.guillen.wordle.presentation.ui.game.CharStatus
 
 data class KeyboardState(
     val rows: List<MutableList<KeyboardModel>> = listOf(
