@@ -1,6 +1,6 @@
 package ch.guillen.wordle.presentation.ui
 
-import ch.guillen.wordle.CoroutinesTest
+import ch.guillen.test.CoroutinesTest
 import ch.guillen.words.domain.usecase.PickRandomWord
 import ch.guillen.words.domain.usecase.ValidateWord
 import io.mockk.coEvery

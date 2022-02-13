@@ -1,6 +1,5 @@
 @file:Suppress("EXPERIMENTAL_API_USAGE")
-
-package ch.guillen.wordle
+package ch.guillen.test
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.resetMain
@@ -37,10 +36,9 @@ interface CoroutinesTest {
 
 /**
  * A JUnit Test Rule that set a Main Dispatcher
- * @author Davide Farella
  */
 class CoroutinesTestRule internal constructor(
-    val dispatchers: DispatcherProvider = TestDispatcherProvider
+    private val dispatchers: DispatcherProvider = TestDispatcherProvider
 ) : TestWatcher() {
 
     override fun starting(description: Description) {

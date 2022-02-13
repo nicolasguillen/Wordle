@@ -1,6 +1,6 @@
 @file:Suppress("EXPERIMENTAL_API_USAGE")
 
-package ch.guillen.wordle
+package ch.guillen.test
 
 import kotlinx.coroutines.test.TestCoroutineDispatcher
 

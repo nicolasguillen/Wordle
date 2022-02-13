@@ -1,4 +1,4 @@
-package ch.guillen.wordle
+package ch.guillen.test
 
 import kotlinx.coroutines.CoroutineDispatcher
 
