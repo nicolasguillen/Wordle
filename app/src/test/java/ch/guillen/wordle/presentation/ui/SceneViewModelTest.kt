@@ -17,14 +17,13 @@ class SceneViewModelTest : CoroutinesTest {
 
     @Before
     fun setup() {
-        coEvery { pickRandomWord.invoke() } returns
-                ch.guillen.words.domain.entity.Word("EARLY")
+        setupSolution()
 
         testee = SceneViewModel(pickRandomWord, validateWord)
     }
 
     @Test
-    fun test1() {
+    fun `getGuessStatus returns word evaluation`() {
         // Arrange
         val word = Word("ALLOY")
 
@@ -39,5 +38,10 @@ class SceneViewModelTest : CoroutinesTest {
             CharStatus.ABSENT,
             CharStatus.CORRECT,
         ))
+    }
+
+    private fun setupSolution() {
+        coEvery { pickRandomWord.invoke() } returns
+                ch.guillen.words.domain.entity.Word("EARLY")
     }
 }

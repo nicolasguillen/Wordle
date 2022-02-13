@@ -2,6 +2,7 @@ package ch.guillen.words.data.repository
 
 import android.content.Context
 import ch.guillen.words.data.entity.WordsDataModel
+import ch.guillen.words.data.repository.asset.readFromAssets
 import ch.guillen.words.domain.entity.Word
 import ch.guillen.words.domain.repository.WordsRepository
 import kotlinx.coroutines.CoroutineDispatcher
@@ -31,9 +32,6 @@ class WordsRepositoryImpl(
         val wordDataModel: WordsDataModel = Json.decodeFromString(fileContent)
         wordDataModel.words
     }
-
-    private fun Context.readFromAssets(resource: String): String =
-        assets.open(resource).reader().use { it.readText() }
 
     companion object {
         const val FILE_NAME_ALL_WORDS = "words.json"
